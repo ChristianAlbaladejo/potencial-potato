@@ -84,7 +84,7 @@ def test_api(name):
 
 
 @api.route('/api/getShopifyProducts', methods=['GET'])
-def get_shopifyproducts():
+def getShopifyProducts():
     r = req.get(
         url=config('API_URL')+'/admin/api/2020-07/products.json')
     data = r.json()
@@ -139,6 +139,7 @@ def get_shopifyproducts():
             words = colors.split()
             colors = ' '.join(sorted(set(words), key=words.index))
             colorName = colors
+            print(colorName)
             colors = colors.split()
             sizes = sizes.split()
             cursor = conn.cursor()
@@ -166,6 +167,7 @@ def get_shopifyproducts():
                         "Accept": "application/xml",
                         "Api-Token": config('AGORA_API_TOKEN')
                     }
+                    print(xml)
                     r = req.post('http://localhost:9984/api/import/', data=xml, headers=headers)
             cursor = conn.cursor()
             cursor.execute(
@@ -190,6 +192,7 @@ def get_shopifyproducts():
                                         </ColorGroup>
                                     </ColorGroups>
                                     </Export>"""
+                    print(xml)
                     headers = {
                         "Content-Type": "application/xml; charset=utf-8",
                         "Accept": "application/xml",
@@ -214,6 +217,7 @@ def get_shopifyproducts():
                                 <Families>
                                     <Family Id='""" + familyId + """' Name='""" + i['product_type'] + """' 
                                     Color="#BACDE2" Order="1"/> </Families> </Export> """
+                print(xml)
                 headers = {
                     "Content-Type": "application/xml; charset=utf-8",
                     "Accept": "application/xml",
@@ -250,8 +254,27 @@ def get_shopifyproducts():
             pricelist = ''
             for r in prices:
                 pricelist += "<Price PriceListId='1' Price='" + r + "'/>"
-            sizeGroupId = int(sizeGroupId) - 1
-            colorGroupId = int(colorGroupId) - 1
+            print(sizesName, colorName)
+            if sizesName:
+                cursor = conn.cursor()
+                cursor.execute("SELECT Id FROM igtposretail.dbo.SizeGroup where Name='" + sizesName + "'")
+                cursor_data = cursor.fetchall()
+                tables = []
+                column_names = [column[0] for column in cursor.description]
+                for row in cursor_data:
+                    tables.append(dict(zip(column_names, row)))
+                sizeGroupId = str(tables[0]['Id'])
+            if colorName:
+                cursor = conn.cursor()
+                cursor.execute("SELECT Id FROM igtposretail.dbo.ColorGroup where Name='" + colorName + "'")
+                cursor_data = cursor.fetchall()
+                tables = []
+                column_names = [column[0] for column in cursor.description]
+                for row in cursor_data:
+                    tables.append(dict(zip(column_names, row)))
+                print(tables)
+                colorGroupId = str(tables[0]['Id'])
+
             xml = """<?xml version="1.0" encoding="utf-8" standalone="yes"?>
             <Export>
                 <Products>
@@ -272,6 +295,7 @@ def get_shopifyproducts():
                     </Product>
                 </Products>
             </Export>"""
+            print(xml)
             headers = {
                 "Content-Type": "application/xml; charset=utf-8",
                 "Accept": "application/xml",
@@ -283,8 +307,8 @@ def get_shopifyproducts():
     return data
 
 
-@api.route('/api/getOrdersShopify', methods=['GET'])
-def get_ordersshopify():
+@api.route('/api/getOrdersShopify', methods=['POST'])
+def getOrdersShopify():
     r = req.get(
         url=config('API_URL')+'/admin/api/2020-07/orders.json?status=any')
     data = r.json()

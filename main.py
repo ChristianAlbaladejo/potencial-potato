@@ -56,11 +56,12 @@ cache = Cache(api, config={"CACHE_TYPE": "simple", "CACHE_DEFAULT_TIMEOUT": "10"
 cors = CORS(api)
 api.config['CORS_HEADERS'] = 'Content-Type'
 conn = pyodbc.connect('Driver={SQL Server};'
-                      'Server='+config('SERVER_NAME')+';'
-                      'username='+config('SERVER_USERNAME')+';'
-                      'password='+config('SERVER_PASS')+';'
-                      'Database='+config('SERVER_DATABASE')+';'
-                      'Trusted_Connection=yes;')
+                      'Server=' + config('SERVER_NAME') + ';'
+                                                          'username=' + config('SERVER_USERNAME') + ';'
+                                                                                                    'password=' + config(
+    'SERVER_PASS') + ';'
+                     'Database=' + config('SERVER_DATABASE') + ';'
+                                                               'Trusted_Connection=yes;')
 cache.init_app(api)
 
 
@@ -86,7 +87,7 @@ def test_api(name):
 @api.route('/api/getShopifyProducts', methods=['GET'])
 def getShopifyProducts():
     r = req.get(
-        url=config('API_URL')+'/admin/api/2020-07/products.json')
+        url=config('API_URL') + '/admin/api/2020-07/products.json')
     data = r.json()
     for i in data['products']:
         cursor = conn.cursor()
@@ -111,7 +112,7 @@ def getShopifyProducts():
                 tables.append(dict(zip(column_names, row)))
             sizeId = str(tables[0][''])
             cursor = conn.cursor()
-            cursor.execute("SELECT MAX(Id) FROM igtposretail.dbo.Color")
+            cursor.execute("SELECT MAX(Id) + 1 FROM igtposretail.dbo.Color")
             cursor_data = cursor.fetchall()
             tables = []
             column_names = [column[0] for column in cursor.description]
@@ -139,7 +140,6 @@ def getShopifyProducts():
             words = colors.split()
             colors = ' '.join(sorted(set(words), key=words.index))
             colorName = colors
-            print(colorName)
             colors = colors.split()
             sizes = sizes.split()
             cursor = conn.cursor()
@@ -179,9 +179,9 @@ def getShopifyProducts():
                     for idx, y in enumerate(colors):
                         id = int(colorId) + idx
                         if y in colours:
-                            lines += "<Color Id ='" + str(id) + "' Name='" + y + "' Value='" + colours[y] + "'/> "
+                            lines += "<Color Id ='" + str(id) + "' Name='" + y + "' Value='" + colours[y] + "'/>"
                         else:
-                            lines += "<Color Id ='" + str(id) + "' Name='" + y + "' Value='#000000'/> "
+                            lines += "<Color Id ='" + str(id) + "' Name='" + y + "' Value='#000000'/>"
                     xml = """<?xml version='1.0' encoding='utf-8'?>
                                 <Export>
                                     <ColorGroups>
@@ -254,16 +254,18 @@ def getShopifyProducts():
             pricelist = ''
             for r in prices:
                 pricelist += "<Price PriceListId='1' Price='" + r + "'/>"
-            print(sizesName, colorName)
-            if sizesName:
-                cursor = conn.cursor()
-                cursor.execute("SELECT Id FROM igtposretail.dbo.SizeGroup where Name='" + sizesName + "'")
-                cursor_data = cursor.fetchall()
-                tables = []
-                column_names = [column[0] for column in cursor.description]
-                for row in cursor_data:
-                    tables.append(dict(zip(column_names, row)))
-                sizeGroupId = str(tables[0]['Id'])
+            if sizesName != "Única":
+                if sizesName:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT Id FROM igtposretail.dbo.SizeGroup where Name='" + sizesName + "'")
+                    cursor_data = cursor.fetchall()
+                    tables = []
+                    column_names = [column[0] for column in cursor.description]
+                    for row in cursor_data:
+                        tables.append(dict(zip(column_names, row)))
+                    sizeGroupId = str(tables[0]['Id'])
+            else:
+                sizeGroupId = 1
             if colorName:
                 cursor = conn.cursor()
                 cursor.execute("SELECT Id FROM igtposretail.dbo.ColorGroup where Name='" + colorName + "'")
@@ -274,7 +276,47 @@ def getShopifyProducts():
                     tables.append(dict(zip(column_names, row)))
                 print(tables)
                 colorGroupId = str(tables[0]['Id'])
-
+            # fetch Storage Options
+            storageOptions = ""
+            for x in i["variants"]:
+                if x['option1'] is None or x['option1'] == "Default Title":
+                    sizeGroupId = ""
+                if x['option2'] is None:
+                    colorGroupId = ""
+                if sizeGroupId != "":
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT Id FROM igtposretail.dbo.Size where Name='" + str(x['option1']) + "' and "
+                                                                                                             "SizeGroupId='" + str(
+                        sizeGroupId) + "'")
+                    cursor_data = cursor.fetchall()
+                    tables = []
+                    column_names = [column[0] for column in cursor.description]
+                    for row in cursor_data:
+                        tables.append(dict(zip(column_names, row)))
+                        sizeId = str(tables[0]['Id'])
+                if colorGroupId != "":
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT Id FROM igtposretail.dbo.Color where Name='" + str(x[
+                                                                                                  'option2']) + "' and ColorGroupId='" + str(
+                        colorGroupId) + "'")
+                    cursor_data = cursor.fetchall()
+                    tables = []
+                    column_names = [column[0] for column in cursor.description]
+                    for row in cursor_data:
+                        tables.append(dict(zip(column_names, row)))
+                        colorId = str(tables[0]['Id'])
+                if x['option1'] == "Default Title" and x['option2'] is not None:
+                    sizeGroupId = 1
+                if sizeGroupId == 1:
+                    sizeId = 1
+                if colorGroupId or sizeGroupId != "":
+                    storageOptions += "<StorageOption WarehouseId='1' ColorId='" + str(colorId) + "' SizeId='" + str(
+                        sizeId) + "' Location='" + str(x['inventory_item_id']) + "' MinStock='0' MaxStock='" + str(
+                        x['inventory_quantity']) + "'/>"
+                else:
+                    storageOptions += "<StorageOption WarehouseId='1' Location='" + str(
+                        x['inventory_item_id']) + "' MinStock='1' MaxStock='" + str(
+                        x['inventory_quantity']) + "'/>"
             xml = """<?xml version="1.0" encoding="utf-8" standalone="yes"?>
             <Export>
                 <Products>
@@ -288,6 +330,7 @@ def getShopifyProducts():
                             """ + barcodes + """
                         </Barcodes>
                         <StorageOptions>
+                            """ + storageOptions + """
                         </StorageOptions>
                         <Prices>
                             """ + pricelist + """
@@ -304,16 +347,16 @@ def getShopifyProducts():
             r = req.post('http://localhost:9984/api/import/', data=xml, headers=headers)
             print(r.text)
 
-    return data
+    return str(data)
 
 
 @api.route('/api/getOrdersShopify', methods=['POST'])
-def getOrdersShopify():
-    r = req.get(
-        url=config('API_URL')+'/admin/api/2020-07/orders.json?status=any')
+async def getOrdersShopify():
+    r = await req.get(
+        url=config('API_URL') + '/admin/api/2020-07/orders.json?status=any')
     data = r.json()
 
-    return data
+    return 'data'
 
 
 ip = socket.gethostbyname(socket.gethostname())

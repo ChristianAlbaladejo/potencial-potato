@@ -167,7 +167,6 @@ def getShopifyProducts():
                         "Accept": "application/xml",
                         "Api-Token": config('AGORA_API_TOKEN')
                     }
-                    print(xml)
                     r = req.post('http://localhost:9984/api/import/', data=xml, headers=headers)
             cursor = conn.cursor()
             cursor.execute(
@@ -192,7 +191,6 @@ def getShopifyProducts():
                                         </ColorGroup>
                                     </ColorGroups>
                                     </Export>"""
-                    print(xml)
                     headers = {
                         "Content-Type": "application/xml; charset=utf-8",
                         "Accept": "application/xml",
@@ -217,7 +215,6 @@ def getShopifyProducts():
                                 <Families>
                                     <Family Id='""" + familyId + """' Name='""" + i['product_type'] + """' 
                                     Color="#BACDE2" Order="1"/> </Families> </Export> """
-                print(xml)
                 headers = {
                     "Content-Type": "application/xml; charset=utf-8",
                     "Accept": "application/xml",
@@ -274,7 +271,6 @@ def getShopifyProducts():
                 column_names = [column[0] for column in cursor.description]
                 for row in cursor_data:
                     tables.append(dict(zip(column_names, row)))
-                print(tables)
                 colorGroupId = str(tables[0]['Id'])
             # fetch Storage Options
             storageOptions = ""
@@ -311,11 +307,10 @@ def getShopifyProducts():
                     sizeId = 1
                 if colorGroupId or sizeGroupId != "":
                     storageOptions += "<StorageOption WarehouseId='1' ColorId='" + str(colorId) + "' SizeId='" + str(
-                        sizeId) + "' Location='" + str(x['inventory_item_id']) + "' MinStock='0' MaxStock='" + str(
+                        sizeId) + "' Location='' MinStock='0' MaxStock='" + str(
                         x['inventory_quantity']) + "'/>"
                 else:
-                    storageOptions += "<StorageOption WarehouseId='1' Location='" + str(
-                        x['inventory_item_id']) + "' MinStock='1' MaxStock='" + str(
+                    storageOptions += "<StorageOption WarehouseId='1' Location='' MinStock='1' MaxStock='" + str(
                         x['inventory_quantity']) + "'/>"
             xml = """<?xml version="1.0" encoding="utf-8" standalone="yes"?>
             <Export>
@@ -347,16 +342,80 @@ def getShopifyProducts():
             r = req.post('http://localhost:9984/api/import/', data=xml, headers=headers)
             print(r.text)
 
+            for x in i["variants"]:
+                print('a')
+                if sizeGroupId != "" and colorGroupId != "":
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT Id FROM igtposretail.dbo.Size where Name='" + str(x['option1']) + "' and "
+                                                                                                             "SizeGroupId='" + str(
+                        sizeGroupId) + "'")
+                    cursor_data = cursor.fetchall()
+                    tables = []
+                    column_names = [column[0] for column in cursor.description]
+                    for row in cursor_data:
+                        tables.append(dict(zip(column_names, row)))
+                        sizeId = str(tables[0]['Id'])
+
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT Id FROM igtposretail.dbo.Color where Name='" + str(x[
+                                                                                                  'option2']) + "' and ColorGroupId='" + str(
+                        colorGroupId) + "'")
+                    cursor_data = cursor.fetchall()
+                    tables = []
+                    column_names = [column[0] for column in cursor.description]
+                    for row in cursor_data:
+                        tables.append(dict(zip(column_names, row)))
+                        colorId = str(tables[0]['Id'])
+                    cursor = conn.cursor()
+                    cursor.execute("UPDATE [igtposretail].[dbo].[StorageOptions] set Shopify_Id = '" + str(x[
+                                                                                                               'inventory_item_id']) + "' where ProductId = " + productId + " and SizeId = " + sizeId + " and ColorId = " + colorId + ";")
+                    conn.commit()
+                    print(cursor)
+                else:
+                    cursor = conn.cursor()
+                    cursor.execute("UPDATE [igtposretail].[dbo].[StorageOptions] set Shopify_Id = '" + str(x[
+                                                                                                               'inventory_item_id']) + "' where ProductId = " + productId + " and SizeId IS NULL and ColorId IS NULL;")
+                    conn.commit()
+                    print(cursor)
+
     return str(data)
 
 
-@api.route('/api/getOrdersShopify', methods=['POST'])
-async def getOrdersShopify():
-    r = await req.get(
-        url=config('API_URL') + '/admin/api/2020-07/orders.json?status=any')
-    data = r.json()
+@api.route('/api/updateStock', methods=['GET'])
+def updateStock():
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT SUM(QuantityInSaleUnit) as Total, StorageOptions.shopify_Id from [igtposretail].["
+                   "dbo].[Movement] INNER JOIN [igtposretail].[dbo].[StorageOptions] ON "
+                   "Movement.ProductId=StorageOptions.ProductId and Movement.ColorId=StorageOptions.ColorId and "
+                   "Movement.SizeId=StorageOptions.SizeId GROUP BY Movement.ProductId, Movement.SizeId, "
+                   "Movement.ColorId, StorageOptions.shopify_Id")
+    cursor_data = cursor.fetchall()
+    tables = []
+    column_names = [column[0] for column in cursor.description]
+    for row in cursor_data:
+        tables.append(dict(zip(column_names, row)))
 
-    return 'data'
+    for x in tables:
+        a = int(x['Total'])
+        print(a)
+        r = req.get(
+            url=config('API_URL') + '/admin/api/2019-04/inventory_levels.json?inventory_item_ids=' + x['shopify_Id'])
+        data = r.json()
+        print(data['inventory_levels'][0]['location_id'])
+        body = {
+            "location_id": data['inventory_levels'][0]['location_id'],
+            "inventory_item_id": x['shopify_Id'],
+            "available_adjustment": a
+        }
+        print(body)
+        r = req.post(
+            url=config('API_URL') + '/admin/api/2020-07/inventory_levels/adjust.json', data=body)
+        print(r.text)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM Movement;")
+        conn.commit()
+
+    return 'tables'
 
 
 ip = socket.gethostbyname(socket.gethostname())

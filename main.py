@@ -397,17 +397,14 @@ def updateStock():
 
     for x in tables:
         a = int(x['Total'])
-        print(a)
         r = req.get(
             url=config('API_URL') + '/admin/api/2019-04/inventory_levels.json?inventory_item_ids=' + x['shopify_Id'])
         data = r.json()
-        print(data['inventory_levels'][0]['location_id'])
         body = {
             "location_id": data['inventory_levels'][0]['location_id'],
             "inventory_item_id": x['shopify_Id'],
             "available_adjustment": a
         }
-        print(body)
         r = req.post(
             url=config('API_URL') + '/admin/api/2020-07/inventory_levels/adjust.json', data=body)
         print(r.text)

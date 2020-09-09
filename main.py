@@ -318,7 +318,7 @@ def getShopifyProducts():
                     <Product Id='""" + productId + """' Name='""" + i['handle'] + """' FamilyId='""" + familyId + """' VatId='4'
             ButtonText='""" + i['body_html'] + """' Color='#FFFFFF'
             Order="1" SizeGroupId='""" + str(sizeGroupId) + """' 
-            UseAsDirectSale="true"
+            UseAsDirectSale="true" Saleable="true"
             PrintWhenPriceIsZero="false"
             ColorGroupId='""" + str(colorGroupId) + """'  IsSoldByWeight="false">
                         <Barcodes>
@@ -341,7 +341,10 @@ def getShopifyProducts():
             }
             r = req.post('http://localhost:9984/api/import/', data=xml, headers=headers)
             print(r.text)
-
+            cursor = conn.cursor()
+            cursor.execute("update [igtposretail].[dbo].[Product] set PurchaseUnitId = 1, Origin = 1, PrintMode = 1, "
+                           "UseAsDirectSale = 0,  PurchaseVatId = 4 where Id ="+productId)
+            conn.commit()
             for x in i["variants"]:
                 print('a')
                 if sizeGroupId != "" and colorGroupId != "":
@@ -403,14 +406,11 @@ def updateStock():
         body = {
             "location_id": data['inventory_levels'][0]['location_id'],
             "inventory_item_id": x['shopify_Id'],
-            "available_adjustment": a
+            "available": a
         }
         r = req.post(
-            url=config('API_URL') + '/admin/api/2020-07/inventory_levels/adjust.json', data=body)
+            url=config('API_URL') + '/admin/api/2020-07/inventory_levels/set.json', data=body)
         print(r.text)
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM Movement;")
-        conn.commit()
 
     return 'tables'
 

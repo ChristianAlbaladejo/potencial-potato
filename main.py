@@ -564,12 +564,16 @@ def loadOrders():
         now = datetime.now()
         dt_string = now.strftime("%Y-%m-%dT%H:%M:%S")
         businessDay = now.strftime("%Y-%m-%d")
+        if 'billing_address'in i:
+            billing_addres = 'Your order'
+        else:
+            billing_addres_city = str(i['billing_address']['city'])
         body = """<?xml version="1.0" encoding="utf-8" standalone="yes"?>
                         <Export>
                             <SalesOrders>
                                 <SalesOrder Serie="SHOPIFY" Number='""" + str(number) + """' VatIncluded="true" DeliveryDate='' BusinessDay='""" + str(businessDay) + """' Date='""" + str(dt_string) + """' Status="Pending">
                                 """ + customer + """
-                                    <DeliveryAddress Street='""" + str(number) + """' City='""" + str(i['billing_address']['city']) + """' Region='""" + str(i['billing_address']['province']) + """' ZipCode='""" + str(i['billing_address']['zip']) + """' />
+                                    <DeliveryAddress Street='""" + str(number) + """' City='""" + billing_addres + """' Region='""" + str(i['billing_address']['province']) + """' ZipCode='""" + str(i['billing_address']['zip']) + """' />
                                     <Pos Id="1" Name="TPV" />
                                     <Workplace Id="1" Name='""" + workplace + """' />
                                     <User Id="1" Name='""" + username + """' />

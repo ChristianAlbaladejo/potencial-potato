@@ -1,11 +1,12 @@
-import pyodbc
 import socket
 
+import pyodbc
 import requests as req
-from flask_caching import Cache
-from flask import Flask, json, request, render_template, jsonify
-from flask_cors import CORS, cross_origin
 from decouple import config
+from flask import Flask, json, request, render_template, jsonify
+from flask_caching import Cache
+from flask_cors import CORS
+from datetime import datetime
 
 colours = {"aliceblue": "#f0f8ff", "Blanca": "#faebd7", "aqua": "#00ffff", "aquamarine": "#7fffd4", "azure": "#f0ffff",
            "beige": "#f5f5dc", "bisque": "#ffe4c4", "black": "#000000", "blanchedalmond": "#ffebcd", "blue": "#0000ff",
@@ -343,7 +344,7 @@ def getShopifyProducts():
             print(r.text)
             cursor = conn.cursor()
             cursor.execute("update [igtposretail].[dbo].[Product] set PurchaseUnitId = 1, Origin = 1, PrintMode = 1, "
-                           "UseAsDirectSale = 0,  PurchaseVatId = 4 where Id ="+productId)
+                           "UseAsDirectSale = 0,  PurchaseVatId = 4 where Id =" + productId)
             conn.commit()
             for x in i["variants"]:
                 print('a')
@@ -380,7 +381,7 @@ def getShopifyProducts():
                                                                                                                'inventory_item_id']) + "' where ProductId = " + productId + " and SizeId IS NULL and ColorId IS NULL;")
                     conn.commit()
                     print(cursor)
-
+    updateStock()
     return str(data)
 
 
@@ -413,6 +414,188 @@ def updateStock():
         print(r.text)
 
     return 'tables'
+
+
+@api.route('/api/loadOrders', methods=['GET'])
+def loadOrders():
+    #getShopifyProducts()
+    lines = ''
+    r = req.get(
+        url=config('API_URL') + '/admin/api/2020-07/orders.json?status=any')
+    data = r.json()
+    print(data)
+    # TODO check if exists order
+    # TODO check payment methods
+    for i in data['orders']:
+        if 'customer' in i:
+            cursorr = conn.cursor()
+            cursorr.execute(
+                "SELECT Id FROM igtposretail.dbo.Customer WHERE igtposretail.dbo.Customer.CardNumber = '" + str(
+                    i['customer']['id']) + "'")
+            cursor_data = cursorr.fetchall()
+            if not cursor_data:
+                print('cliente no creado')
+                cursor = conn.cursor()
+                cursor.execute("SELECT MAX(Id) + 1 FROM igtposretail.dbo.Customer")
+                cursor_dataa = cursor.fetchall()
+                tables = []
+                column_names = [column[0] for column in cursor.description]
+                for row in cursor_dataa:
+                    tables.append(dict(zip(column_names, row)))
+                idCustomer = str(tables[0][''])
+                xml = """<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+                    <Export>
+                        <Customers>
+                            <Customer Id='""" + idCustomer + """' FiscalName='""" + i['customer']['first_name'] + ' ' + \
+                      i['customer']['last_name'] + """' Cif="" BusinessName='""" + i['customer']['first_name'] + \
+                      i['customer']['last_name'] + """' Street='""" + i['customer']['default_address']['address1'] + """'
+                            Region='""" + i['customer']['default_address']['province'] + """' ZipCode='""" + str(
+                    i['customer']['default_address'][
+                        'zip']) + """' DiscountRate="0.00" ApplySurcharge="true" CardNumber='""" + str(
+                    i['customer']['id']) + """' Telephone='""" + str(i['customer']['default_address']['phone']) + """' ContactPerson=""
+                            Email="pedro.aranda@terra.es" AccountCode="" Notes="" ShowNotes="true" SendMailing="true"/>
+                        </Customers>
+                    </Export>"""
+                headers = {
+                    "Content-Type": "application/xml; charset=utf-8",
+                    "Accept": "application/xml",
+                    "Api-Token": config('AGORA_API_TOKEN')
+                }
+                r = req.post('http://localhost:9984/api/import/', data=xml, headers=headers)
+                customer = """<Customer Id='""" + idCustomer + """' FiscalName='""" + i['customer'][
+                    'first_name'] + ' ' + i['customer']['last_name'] + """' Cif="" Street='""" + i['shipping_address'][
+                               'address1'] + """' City='""" + i['shipping_address']['city'] + """' Region='""" + \
+                           i['shipping_address']['province'] + """' ZipCode='""" + i['shipping_address'][
+                               'zip'] + """' ApplySurcharge="false" AccountCode=""/>"""
+                print(xml, customer)
+            else:
+                tables = []
+                column_names = [column[0] for column in cursorr.description]
+                for row in cursor_data:
+                    tables.append(dict(zip(column_names, row)))
+                idCustomer = str(tables[0]['Id'])
+                customer = """<Customer Id='""" + idCustomer + """' FiscalName='""" + i['customer'][
+                    'first_name'] + ' ' + i['customer']['last_name'] + """' Cif="" Street='""" + i['shipping_address'][
+                               'address1'] + """' City='""" + i['shipping_address']['city'] + """' Region='""" + \
+                           i['shipping_address']['province'] + """' ZipCode='""" + i['shipping_address'][
+                               'zip'] + """' ApplySurcharge="false" AccountCode=""/>"""
+                print(idCustomer, customer)
+        else:
+            print('Cliente general')
+            customer = """<Customer Id='1' FiscalName='CLIENTE GENÉRICO' Cif="00000000" Street='' City='' Region='' 
+            ZipCode='' ApplySurcharge="false" AccountCode=""/> """
+
+        for x in i['line_items']:
+            r = req.get(
+                url=config('API_URL') + '/admin/api/2020-07/products/' + str(x['product_id']) + '.json')
+            data = r.json()
+            for idx, p in enumerate(data['product']['variants']):
+                if p['id'] == x['variant_id']:
+                    inventaryId = p['inventory_item_id']
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "SELECT * FROM [igtposretail].[dbo].[StorageOptions] where Shopify_Id=" + str(inventaryId))
+                    cursor_data = cursor.fetchall()
+                    if cursor_data:
+                        tables = []
+                        column_names = [column[0] for column in cursor.description]
+                        for row in cursor_data:
+                            tables.append(dict(zip(column_names, row)))
+                        productId = str(tables[0]['ProductId'])
+                        sizeId = str(tables[0]['SizeId'])
+                        colorId = str(tables[0]['ColorId'])
+
+                        cursor = conn.cursor()
+                        cursor.execute(
+                            "SELECT * FROM [igtposretail].[dbo].[Product] where Id=" + str(productId))
+                        cursor_data = cursor.fetchall()
+                        tables = []
+                        column_names = [column[0] for column in cursor.description]
+                        for row in cursor_data:
+                            tables.append(dict(zip(column_names, row)))
+                        familyId = str(tables[0]['FamilyId'])
+                        barcode = str(tables[0]['BarcodeSummary'])
+                        totalAmount = x['quantity'] * x['price']
+                        now = datetime.now()
+                        dt_string = now.strftime("%Y-%m-%dT%H:%M:%S")
+                        lines += """<Line Index='""" + str(idx) + """' ProductId='""" + str(productId) + """' 
+                        ProductName='""" + str(x['title']) + """' FamilyId='""" + str(familyId) + """' 
+                        CreationDate='""" + str(dt_string) + """' UserId="1" MainBarcode='""" + str(
+                            barcode) + """' Quantity='""" + str(x['quantity']) + """.000' 
+                        ProductPrice='""" + str(x['price']) + """' SizeId='""" + str(sizeId) + """' ColorId='""" + str(
+                            colorId) + """'  UnitPrice='""" + str(
+                            x['price']) + """' TotalAmount='""" + str(totalAmount) + """' VatId="3" VatRate="0.0000" 
+                        SurchargeRate="0.0000" DiscountRate="0.0000" CashDiscount="0.0000" Notes="" OfferId="" 
+                        OfferCode="" UnitCostPrice='""" + str(x['price']) + """' TotalCostPrice='""" + str(
+                            totalAmount) + """'/> """
+                        print(lines)
+                    else:
+                        print('no existe')
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT MAX(Number) + 1 AS Number FROM [igtposretail].[dbo].[SalesOrder] where Serie='SHOPIFY'")
+        cursor_data = cursor.fetchall()
+        tables = []
+        column_names = [column[0] for column in cursor.description]
+        for row in cursor_data:
+            tables.append(dict(zip(column_names, row)))
+        if tables[0]['Number'] is not None:
+            number = str(tables[0]['Number'])
+        else:
+            number = 1
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT Name FROM [igtposretail].[dbo].[Workplace] where Id=1")
+        cursor_data = cursor.fetchall()
+        tables = []
+        column_names = [column[0] for column in cursor.description]
+        for row in cursor_data:
+            tables.append(dict(zip(column_names, row)))
+        workplace = str(tables[0]['Name'])
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT Name FROM [igtposretail].[dbo].[User] where Id=2")
+        cursor_data = cursor.fetchall()
+        tables = []
+        column_names = [column[0] for column in cursor.description]
+        for row in cursor_data:
+            tables.append(dict(zip(column_names, row)))
+        username = str(tables[0]['Name'])
+        now = datetime.now()
+        dt_string = now.strftime("%Y-%m-%dT%H:%M:%S")
+        businessDay = now.strftime("%Y-%m-%d")
+        body = """<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+                        <Export>
+                            <SalesOrders>
+                                <SalesOrder Serie="SHOPIFY" Number='""" + str(number) + """' VatIncluded="true" DeliveryDate='' BusinessDay='""" + str(businessDay) + """' Date='""" + str(dt_string) + """' Status="Pending">
+                                """ + customer + """
+                                    <DeliveryAddress Street='""" + str(number) + """' City='""" + str(i['billing_address']['city']) + """' Region='""" + str(i['billing_address']['province']) + """' ZipCode='""" + str(i['billing_address']['zip']) + """' />
+                                    <Pos Id="1" Name="TPV" />
+                                    <Workplace Id="1" Name='""" + workplace + """' />
+                                    <User Id="1" Name='""" + username + """' />
+                                    <PriceList Id="1" Name="General"/>
+                                    <Lines>
+                                    """ + lines + """
+                                    </Lines>
+                                    <Discounts DiscountRate="0.0000" CashDiscount="0.00" />
+                                    <Payments>
+                                        <Payment MethodId="3" Date='""" + str(dt_string) + """' MethodName="Shopify" Amount="-6.85" PaidAmount='""" + str(i['total_price']) + """' ChangeAmount="0.00" PosId="1" IsPrepayment="true">
+                                            <ExtraInformation>
+                                            </ExtraInformation>
+                                        </Payment>
+                                    </Payments>
+                                    <Offers>
+                                    </Offers>
+                                    <Totals GrossAmount='""" + str(i['total_price']) + """' NetAmount='""" + str(i['total_price']) + """' VatAmount="0.00" SurchargeAmount="0.00">
+                                        <Taxes>
+                                        </Taxes>
+                                    </Totals>
+                                </SalesOrder>
+                            </SalesOrders>
+                        </Export>"""
+        print(body)
+
+    return data
 
 
 ip = socket.gethostbyname(socket.gethostname())

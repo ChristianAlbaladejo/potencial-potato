@@ -3,4 +3,13 @@ root - WARNING - Updating stock
 root - WARNING - Starting to load orders 
 root - WARNING - Starting to load products
 root - WARNING - Updating stock
-werkzeug - INFO - 192.168.200.227 - - [11/Sep/2020 14:00:51] "[37mGET /api/loadOrders HTTP/1.1[0m" 200 -
+werkzeug - INFO - 192.168.200.227 - - [11/Sep/2020 15:58:20] "[37mGET /api/loadOrders HTTP/1.1[0m" 200 -
+root - WARNING - Updating stock
+root - WARNING - Starting to load orders 
+root - WARNING - Starting to load products
+root - WARNING - Updating stock
+root - ERROR - The product does not exist
+root - ERROR - 
+root - WARNING - New order created
+werkzeug - INFO - 192.168.200.227 - - [11/Sep/2020 15:59:18] "[37mGET /api/loadOrders HTTP/1.1[0m" 200 -
+werkzeug - INFO - 192.168.200.227 - - [11/Sep/2020 16:02:13] "[33mGET /api/adas HTTP/1.1[0m" 404 -

@@ -426,7 +426,6 @@ def updateStock():
         logging.warning('Stock updated')
 
 
-
 @api.route('/api/loadOrders', methods=['GET'])
 def loadOrders():
     updateStock()
@@ -668,7 +667,7 @@ def loadOrders():
             logging.error(r.text)
             logging.warning('New order created')
 
-    return 'Pedidos recargados'
+    return render_template('success.html')
 
 
 ip = socket.gethostbyname(socket.gethostname())

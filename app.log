@@ -149,3 +149,8 @@ root - WARNING - New order created
 root - ERROR - 
 root - WARNING - New order created
 werkzeug - INFO - 192.168.200.227 - - [11/Sep/2020 17:32:24] "[37mGET /api/loadOrders HTTP/1.1[0m" 200 -
+root - WARNING - Updating stock
+root - WARNING - Starting to load orders 
+root - WARNING - Starting to load products
+root - WARNING - Updating stock
+werkzeug - INFO - 192.168.200.227 - - [11/Sep/2020 17:37:53] "[37mGET /api/loadOrders HTTP/1.1[0m" 200 -

@@ -327,7 +327,7 @@ def getShopifyProducts():
             <Export>
                 <Products>
                     <Product Id='""" + productId + """' Name='""" + i['handle'] + """' FamilyId='""" + familyId + """' VatId='4'
-            ButtonText='""" + i['body_html'] + """' Color='#FFFFFF'
+            ButtonText='""" + i['handle'] + """' Color='#FFFFFF'
             Order="1" SizeGroupId='""" + str(sizeGroupId) + """' 
             UseAsDirectSale="true" Saleable="true"
             PrintWhenPriceIsZero="false"
@@ -344,7 +344,6 @@ def getShopifyProducts():
                     </Product>
                 </Products>
             </Export>"""
-            print(xml)
             headers = {
                 "Content-Type": "application/xml; charset=utf-8",
                 "Accept": "application/xml",
@@ -353,7 +352,6 @@ def getShopifyProducts():
             r = req.post('http://localhost:9984/api/import/', data=xml, headers=headers)
             logging.error(r.text)
             logging.warning('New Productcreated')
-            print(r.text)
             cursor = conn.cursor()
             cursor.execute("update [igtposretail].[dbo].[Product] set PurchaseUnitId = 1, Origin = 1, PrintMode = 1, "
                            "UseAsDirectSale = 0,  PurchaseVatId = 4 where Id =" + productId)
@@ -385,13 +383,11 @@ def getShopifyProducts():
                     cursor.execute("UPDATE [igtposretail].[dbo].[StorageOptions] set Shopify_Id = '" + str(x[
                                                                                                                'inventory_item_id']) + "' where ProductId = " + productId + " and SizeId = " + sizeId + " and ColorId = " + colorId + ";")
                     conn.commit()
-                    print(cursor)
                 else:
                     cursor = conn.cursor()
                     cursor.execute("UPDATE [igtposretail].[dbo].[StorageOptions] set Shopify_Id = '" + str(x[
                                                                                                                'inventory_item_id']) + "' where ProductId = " + productId + " and SizeId IS NULL and ColorId IS NULL;")
                     conn.commit()
-                    print(cursor)
     updateStock()
 
 
@@ -448,7 +444,7 @@ def loadOrders():
                         i['customer']['id']) + "'")
                 cursor_data = cursorr.fetchall()
                 if not cursor_data:
-                    print('cliente no creado')
+                    logging.warning('Starting to load orders ')
                     cursor = conn.cursor()
                     cursor.execute("SELECT MAX(Id) + 1 FROM igtposretail.dbo.Customer")
                     cursor_dataa = cursor.fetchall()
@@ -498,7 +494,6 @@ def loadOrders():
                                i['shipping_address']['province'] + """' ZipCode='""" + i['shipping_address'][
                                    'zip'] + """' ApplySurcharge="false" AccountCode=""/>"""
             else:
-                print('Cliente general')
                 customer = """<Customer Id='1' FiscalName='CLIENTE GENÉRICO' Cif="00000000" Street='' City='' Region='' 
                 ZipCode='' ApplySurcharge="false" AccountCode=""/> """
 
@@ -550,7 +545,6 @@ def loadOrders():
                             OfferCode="" UnitCostPrice='""" + str(x['price']) + """' TotalCostPrice='""" + str(
                         totalAmount) + """'/> """
                 else:
-                    print(str(colorId), 'q')
                     cursor = conn.cursor()
                     cursor.execute(
                         "SELECT * FROM [igtposretail].[dbo].[Color] where Id=" + str(colorId)+";")

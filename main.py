@@ -94,9 +94,10 @@ def getShopifyProducts():
         url=config('API_URL') + '/admin/api/2020-07/products.json')
     data = r.json()
     for i in data['products']:
+        name = i['title'].replace(" ", "-")
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT * FROM igtposretail.dbo.Product WHERE igtposretail.dbo.Product.Name = '" + i['title'] + "'")
+            "SELECT * FROM igtposretail.dbo.Product WHERE igtposretail.dbo.Product.Name = '" + name + "'")
         cursor_data = cursor.fetchall()
         if not cursor_data:
             cursor = conn.cursor()
@@ -358,7 +359,6 @@ def getShopifyProducts():
                            "UseAsDirectSale = 0,  PurchaseVatId = 4 where Id =" + productId)
             conn.commit()
             for x in i["variants"]:
-                print('a')
                 if sizeGroupId != "" and colorGroupId != "":
                     cursor = conn.cursor()
                     cursor.execute("SELECT Id FROM igtposretail.dbo.Size where Name='" + str(x['option1']) + "' and "
@@ -503,6 +503,8 @@ def loadOrders():
                 ZipCode='' ApplySurcharge="false" AccountCode=""/> """
 
             for idx, x in enumerate(i['line_items']):
+                sizeId = ''
+                colorId = ''
                 r = req.get(
                     url=config('API_URL') + '/admin/api/2020-07/products/' + str(x['product_id']) + '.json')
                 data = r.json()
@@ -548,9 +550,10 @@ def loadOrders():
                             OfferCode="" UnitCostPrice='""" + str(x['price']) + """' TotalCostPrice='""" + str(
                         totalAmount) + """'/> """
                 else:
+                    print(str(colorId), 'q')
                     cursor = conn.cursor()
                     cursor.execute(
-                        "SELECT * FROM [igtposretail].[dbo].[Color] where Id=" + str(colorId))
+                        "SELECT * FROM [igtposretail].[dbo].[Color] where Id=" + str(colorId)+";")
                     cursor_data = cursor.fetchall()
                     tables = []
                     column_names = [column[0] for column in cursor.description]

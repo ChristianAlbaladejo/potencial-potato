@@ -65,6 +65,8 @@ conn = pyodbc.connect('Driver={SQL Server};'
                      'Database=' + config('SERVER_DATABASE') + ';'
                                                                'Trusted_Connection=yes;')
 cache.init_app(api)
+
+
 logging.basicConfig(filename='app.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s')
 
 
@@ -389,6 +391,7 @@ def getShopifyProducts():
                                                                                                                'inventory_item_id']) + "' where ProductId = " + productId + " and SizeId IS NULL and ColorId IS NULL;")
                     conn.commit()
     updateStock()
+    return data
 
 
 @api.route('/api/updateStock', methods=['GET'])
@@ -420,6 +423,7 @@ def updateStock():
             url=config('API_URL') + '/admin/api/2020-07/inventory_levels/set.json', data=body)
         logging.error(r.text)
         logging.warning('Stock updated')
+        return data
 
 
 @api.route('/api/loadOrders', methods=['GET'])
@@ -547,7 +551,7 @@ def loadOrders():
                 else:
                     cursor = conn.cursor()
                     cursor.execute(
-                        "SELECT * FROM [igtposretail].[dbo].[Color] where Id=" + str(colorId)+";")
+                        "SELECT * FROM [igtposretail].[dbo].[Color] where Id=" + str(colorId) + ";")
                     cursor_data = cursor.fetchall()
                     tables = []
                     column_names = [column[0] for column in cursor.description]
@@ -622,6 +626,16 @@ def loadOrders():
                 billing_address_city = 'Your order'
                 billing_address_region = 'Your order'
                 billing_address_zip = 'Your order'
+            r = req.get(
+                url=config('API_URL') + '/admin/api/2020-07/orders/' + str(i['id']) + '/transactions.json')
+            data = r.json()
+            cashDiscount = 0
+            try:
+                print(data['transactions'][1])
+                cashDiscount = data['transactions'][0]['amount']
+            except IndexError:
+                if data['transactions'][0]['gateway'] == 'gift_card':
+                    cashDiscount = i['total_price']
             body = """<?xml version="1.0" encoding="utf-8" standalone="yes"?>
                             <Export>
                                 <SalesOrders>
@@ -639,10 +653,11 @@ def loadOrders():
                                         <Lines>
                                         """ + lines + """
                                         </Lines>
-                                        <Discounts DiscountRate="0.0000" CashDiscount="0.00" />
+                                        <Discounts DiscountRate="0.0000" CashDiscount='""" + str(cashDiscount) + """' />
                                         <Payments>
                                             <Payment MethodId="3" Date='""" + str(
-                dt_string) + """' MethodName="Shopify" Amount="-6.85" PaidAmount='""" + str(i['total_price']) + """' 
+                dt_string) + """' MethodName="Shopify" Amount='""" + str(
+                i['total_price']) + """' PaidAmount='""" + str(i['total_price']) + """' 
                 ChangeAmount="0.00" PosId="1" IsPrepayment="true"> <ExtraInformation> </ExtraInformation> </Payment> 
                 </Payments> <Notes><![CDATA[""" + str(
                 i['id']) + """]]></Notes> <Offers> </Offers> <Totals GrossAmount='""" + str(

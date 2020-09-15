@@ -636,6 +636,8 @@ def loadOrders():
             except IndexError:
                 if data['transactions'][0]['gateway'] == 'gift_card':
                     cashDiscount = i['total_price']
+            surchageAmount = float(i['total_price']) - float(cashDiscount)
+            #discount = ((float(i['total_price']) / float(cashDiscount)) * 100) - 100
             body = """<?xml version="1.0" encoding="utf-8" standalone="yes"?>
                             <Export>
                                 <SalesOrders>
@@ -653,16 +655,13 @@ def loadOrders():
                                         <Lines>
                                         """ + lines + """
                                         </Lines>
-                                        <Discounts DiscountRate="0.0000" CashDiscount='""" + str(cashDiscount) + """' />
-                                        <Payments>
-                                            <Payment MethodId="3" Date='""" + str(
-                dt_string) + """' MethodName="Shopify" Amount='""" + str(
-                i['total_price']) + """' PaidAmount='""" + str(i['total_price']) + """' 
-                ChangeAmount="0.00" PosId="1" IsPrepayment="true"> <ExtraInformation> </ExtraInformation> </Payment> 
-                </Payments> <Notes><![CDATA[""" + str(
+                                        <Discounts DiscountRate='0.00' CashDiscount='"""+str(cashDiscount)+"""' />
+                                        <Payments />
+                <Notes><![CDATA[""" + str(
                 i['id']) + """]]></Notes> <Offers> </Offers> <Totals GrossAmount='""" + str(
                 i['total_price']) + """' NetAmount='""" + \
-                   str(i['total_price']) + """' VatAmount="0.00" SurchargeAmount="0.00">
+                   str(cashDiscount) + """' VatAmount="0.00" SurchargeAmount='""" + \
+                   str(surchageAmount) + """'>
                                             <Taxes>
                                             </Taxes>
                                         </Totals>
